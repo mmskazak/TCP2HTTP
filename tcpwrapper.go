@@ -37,25 +37,31 @@ type tcpWrapper struct {
 	logger              *zap.SugaredLogger
 }
 
-// NewTCPWrapper creates a new instance of TCPWrapper with the given connection and delimiters.
-func NewTCPWrapper(
-	conn net.Conn,
-	requestDelimiter,
-	responseDelimiter []byte,
-	isRequest isrequest.IsRequestFunc,
-	isResponse isresponse.IsResponseFunc,
-	logger *zap.Logger,
-) Wrapper {
-	return &tcpWrapper{
+// NewTCPWrapper creates a new instance of TCPWrapper with the given connection and options.
+func NewTCPWrapper(conn net.Conn, opts ...Option) Wrapper {
+	// Create wrapper with default values
+	w := &tcpWrapper{
 		conn:                conn,
-		requestDelimiter:    requestDelimiter,
-		responseDelimiter:   responseDelimiter,
+		requestDelimiter:    []byte("\n"), // default delimiter
+		responseDelimiter:   []byte("\n"), // default delimiter
 		requestMiddlewares:  make([]Middleware, 0),
 		responseMiddlewares: make([]Middleware, 0),
-		isRequest:           isRequest,
-		isResponse:          isResponse,
-		logger:              logger.Sugar(),
+		isRequest:           isrequest.Dummy,  // default checker
+		isResponse:          isresponse.Dummy, // default checker
 	}
+
+	// Create default logger if not set
+	if w.logger == nil {
+		logger, _ := zap.NewProduction()
+		w.logger = logger.Sugar()
+	}
+
+	// Apply all options
+	for _, opt := range opts {
+		opt(w)
+	}
+
+	return w
 }
 
 // AddRequestMiddleware adds a middleware for request processing.
