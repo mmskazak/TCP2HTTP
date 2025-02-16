@@ -7,13 +7,13 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	isrequest "github.com/mmskazak/tcpwrapper/is_request"
+	isresponse "github.com/mmskazak/tcpwrapper/is_response"
 )
 
 // Middleware defines a type of middleware function for processing messages.
 type Middleware func([]byte) ([]byte, error)
-
-// IsResponseFunc defines a function type that determines whether a message is a response.
-type IsResponseFunc func([]byte) bool
 
 // TCPWrapper is a wrapper over a TCP connection that allows
 // applying different middleware chains for processing requests and responses.
@@ -23,18 +23,26 @@ type TCPWrapper struct {
 	ResponseDelimiter   []byte
 	RequestMiddlewares  []Middleware
 	ResponseMiddlewares []Middleware
-	isResponse         IsResponseFunc
+	isRequest           isrequest.IsRequestFunc
+	isResponse          isresponse.IsResponseFunc
 }
 
 // NewTCPWrapper creates a new instance of TCPWrapper with the given connection and delimiters.
-func NewTCPWrapper(conn net.Conn, requestDelimiter, responseDelimiter []byte, isResponse IsResponseFunc) *TCPWrapper {
+func NewTCPWrapper(
+	conn net.Conn,
+	requestDelimiter,
+	responseDelimiter []byte,
+	isRequest isrequest.IsRequestFunc,
+	isResponse isresponse.IsResponseFunc,
+) *TCPWrapper {
 	return &TCPWrapper{
 		Conn:                conn,
 		RequestDelimiter:    requestDelimiter,
 		ResponseDelimiter:   responseDelimiter,
 		RequestMiddlewares:  make([]Middleware, 0),
 		ResponseMiddlewares: make([]Middleware, 0),
-		isResponse:         isResponse,
+		isRequest:           isRequest,
+		isResponse:          isResponse,
 	}
 }
 
@@ -101,17 +109,16 @@ func (tw *TCPWrapper) HandleMessage() error {
 		return err
 	}
 
-	// Use the provided isResponse function to determine message type
-	if tw.isResponse(message) {
-		for _, mw := range tw.ResponseMiddlewares {
+	// Use the provided isRequest and isResponse functions to determine message type
+	if tw.isRequest(message) {
+		for _, mw := range tw.RequestMiddlewares {
 			message, err = mw(message)
 			if err != nil {
 				return err
 			}
 		}
-	} else {
-		// Otherwise, assume it's a request and apply the corresponding middlewares.
-		for _, mw := range tw.RequestMiddlewares {
+	} else if tw.isResponse(message) {
+		for _, mw := range tw.ResponseMiddlewares {
 			message, err = mw(message)
 			if err != nil {
 				return err
