@@ -15,14 +15,22 @@ import (
 // Middleware defines a type of middleware function for processing messages.
 type Middleware func([]byte) ([]byte, error)
 
-// TCPWrapper is a wrapper over a TCP connection that allows
+// Wrapper defines the public API for TCP wrapper
+type Wrapper interface {
+	AddRequestMiddleware(mw Middleware)
+	AddResponseMiddleware(mw Middleware)
+	HandleMessage() error
+	Close() error
+}
+
+// tcpWrapper is a wrapper over a TCP connection that allows
 // applying different middleware chains for processing requests and responses.
-type TCPWrapper struct {
+type tcpWrapper struct {
 	net.Conn
-	RequestDelimiter    []byte
-	ResponseDelimiter   []byte
-	RequestMiddlewares  []Middleware
-	ResponseMiddlewares []Middleware
+	requestDelimiter    []byte
+	responseDelimiter   []byte
+	requestMiddlewares  []Middleware
+	responseMiddlewares []Middleware
 	isRequest           isrequest.IsRequestFunc
 	isResponse          isresponse.IsResponseFunc
 }
@@ -34,39 +42,39 @@ func NewTCPWrapper(
 	responseDelimiter []byte,
 	isRequest isrequest.IsRequestFunc,
 	isResponse isresponse.IsResponseFunc,
-) *TCPWrapper {
-	return &TCPWrapper{
+) Wrapper {
+	return &tcpWrapper{
 		Conn:                conn,
-		RequestDelimiter:    requestDelimiter,
-		ResponseDelimiter:   responseDelimiter,
-		RequestMiddlewares:  make([]Middleware, 0),
-		ResponseMiddlewares: make([]Middleware, 0),
+		requestDelimiter:    requestDelimiter,
+		responseDelimiter:   responseDelimiter,
+		requestMiddlewares:  make([]Middleware, 0),
+		responseMiddlewares: make([]Middleware, 0),
 		isRequest:           isRequest,
 		isResponse:          isResponse,
 	}
 }
 
 // AddRequestMiddleware adds a middleware for request processing.
-func (tw *TCPWrapper) AddRequestMiddleware(mw Middleware) {
-	tw.RequestMiddlewares = append(tw.RequestMiddlewares, mw)
+func (tw *tcpWrapper) AddRequestMiddleware(mw Middleware) {
+	tw.requestMiddlewares = append(tw.requestMiddlewares, mw)
 }
 
 // AddResponseMiddleware adds a middleware for response processing.
-func (tw *TCPWrapper) AddResponseMiddleware(mw Middleware) {
-	tw.ResponseMiddlewares = append(tw.ResponseMiddlewares, mw)
+func (tw *tcpWrapper) AddResponseMiddleware(mw Middleware) {
+	tw.responseMiddlewares = append(tw.responseMiddlewares, mw)
 }
 
 // readMessage reads data from the connection until one of the following conditions is met:
 // 1. If a Content-Length header is found, reads the specified number of bytes.
 // 2. If an explicit delimiter is detected, considers the message complete.
 // 3. If EOF is received, returns the accumulated data.
-func (tw *TCPWrapper) readMessage(delimiter []byte) ([]byte, error) {
+func (tw *tcpWrapper) readMessage(delimiter []byte) ([]byte, error) {
 	var buffer []byte
 	temp := make([]byte, 256)
 	expectedLength := -1
 
 	for {
-		n, err := tw.Conn.Read(temp)
+		n, err := tw.conn.Read(temp)
 		if err != nil && err != io.EOF {
 			return nil, err
 		}
@@ -102,23 +110,23 @@ func (tw *TCPWrapper) readMessage(delimiter []byte) ([]byte, error) {
 
 // HandleMessage reads a complete message, determines its type (response or request),
 // and runs the corresponding middleware chain before sending the result back.
-func (tw *TCPWrapper) HandleMessage() error {
+func (tw *tcpWrapper) HandleMessage() error {
 	// Use RequestDelimiter to read the message.
-	message, err := tw.readMessage(tw.RequestDelimiter)
+	message, err := tw.readMessage(tw.requestDelimiter)
 	if err != nil {
 		return err
 	}
 
 	// Use the provided isRequest and isResponse functions to determine message type
 	if tw.isRequest(message) {
-		for _, mw := range tw.RequestMiddlewares {
+		for _, mw := range tw.requestMiddlewares {
 			message, err = mw(message)
 			if err != nil {
 				return err
 			}
 		}
 	} else if tw.isResponse(message) {
-		for _, mw := range tw.ResponseMiddlewares {
+		for _, mw := range tw.responseMiddlewares {
 			message, err = mw(message)
 			if err != nil {
 				return err
@@ -126,13 +134,13 @@ func (tw *TCPWrapper) HandleMessage() error {
 		}
 	}
 
-	_, err = tw.Conn.Write(message)
+	_, err = tw.conn.Write(message)
 	return err
 }
 
 // Close properly closes the connection.
-func (tw *TCPWrapper) Close() error {
-	return tw.Conn.Close()
+func (tw *tcpWrapper) Close() error {
+	return tw.conn.Close()
 }
 
 // extractContentLength searches for the "Content-Length" header in headers and returns its value.
