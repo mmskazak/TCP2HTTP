@@ -1,3 +1,3 @@
-module github.com/mmskazak/tcp2http
+module github.com/mmskazak/tcpwrapper
 
 go 1.23.4

@@ -1,4 +1,4 @@
-package tcp2http
+package tcpwrapper
 
 import (
 	"bytes"
