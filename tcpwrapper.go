@@ -46,8 +46,8 @@ func NewTCPWrapper(conn net.Conn, opts ...Option) Wrapper {
 		responseDelimiter:   []byte("\n"), // default delimiter
 		requestMiddlewares:  make([]Middleware, 0),
 		responseMiddlewares: make([]Middleware, 0),
-		isRequest:           isrequest.Dummy,  // default checker
-		isResponse:          isresponse.Dummy, // default checker
+		isRequest:           isrequest.IsDummy,  // default checker
+		isResponse:          isresponse.IsDummy, // default checker
 	}
 
 	// Create default logger if not set
