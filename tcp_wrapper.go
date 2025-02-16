@@ -15,7 +15,7 @@ type Middleware func([]byte) ([]byte, error)
 // TCPWrapper is a wrapper over a TCP connection that allows
 // applying different middleware chains for processing requests and responses.
 type TCPWrapper struct {
-	Conn                net.Conn
+	net.Conn
 	RequestDelimiter    []byte
 	ResponseDelimiter   []byte
 	RequestMiddlewares  []Middleware
