@@ -22,6 +22,17 @@ type TCPWrapper struct {
 	ResponseMiddlewares []Middleware
 }
 
+// NewTCPWrapper creates a new instance of TCPWrapper with the given connection and delimiters.
+func NewTCPWrapper(conn net.Conn, requestDelimiter, responseDelimiter []byte) *TCPWrapper {
+	return &TCPWrapper{
+		Conn:                conn,
+		RequestDelimiter:    requestDelimiter,
+		ResponseDelimiter:   responseDelimiter,
+		RequestMiddlewares:  make([]Middleware, 0),
+		ResponseMiddlewares: make([]Middleware, 0),
+	}
+}
+
 // AddRequestMiddleware adds a middleware for request processing.
 func (tw *TCPWrapper) AddRequestMiddleware(mw Middleware) {
 	tw.RequestMiddlewares = append(tw.RequestMiddlewares, mw)
