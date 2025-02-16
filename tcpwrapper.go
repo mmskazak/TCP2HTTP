@@ -26,7 +26,7 @@ type Wrapper interface {
 // tcpWrapper is a wrapper over a TCP connection that allows
 // applying different middleware chains for processing requests and responses.
 type tcpWrapper struct {
-	net.Conn
+	conn                net.Conn
 	requestDelimiter    []byte
 	responseDelimiter   []byte
 	requestMiddlewares  []Middleware
@@ -44,7 +44,7 @@ func NewTCPWrapper(
 	isResponse isresponse.IsResponseFunc,
 ) Wrapper {
 	return &tcpWrapper{
-		Conn:                conn,
+		conn:                conn,
 		requestDelimiter:    requestDelimiter,
 		responseDelimiter:   responseDelimiter,
 		requestMiddlewares:  make([]Middleware, 0),
