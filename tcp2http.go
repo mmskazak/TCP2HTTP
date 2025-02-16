@@ -12,6 +12,9 @@ import (
 // Middleware defines a type of middleware function for processing messages.
 type Middleware func([]byte) ([]byte, error)
 
+// IsResponseFunc defines a function type that determines whether a message is a response.
+type IsResponseFunc func([]byte) bool
+
 // TCPWrapper is a wrapper over a TCP connection that allows
 // applying different middleware chains for processing requests and responses.
 type TCPWrapper struct {
@@ -20,16 +23,18 @@ type TCPWrapper struct {
 	ResponseDelimiter   []byte
 	RequestMiddlewares  []Middleware
 	ResponseMiddlewares []Middleware
+	isResponse         IsResponseFunc
 }
 
 // NewTCPWrapper creates a new instance of TCPWrapper with the given connection and delimiters.
-func NewTCPWrapper(conn net.Conn, requestDelimiter, responseDelimiter []byte) *TCPWrapper {
+func NewTCPWrapper(conn net.Conn, requestDelimiter, responseDelimiter []byte, isResponse IsResponseFunc) *TCPWrapper {
 	return &TCPWrapper{
 		Conn:                conn,
 		RequestDelimiter:    requestDelimiter,
 		ResponseDelimiter:   responseDelimiter,
 		RequestMiddlewares:  make([]Middleware, 0),
 		ResponseMiddlewares: make([]Middleware, 0),
+		isResponse:         isResponse,
 	}
 }
 
@@ -96,8 +101,8 @@ func (tw *TCPWrapper) HandleMessage() error {
 		return err
 	}
 
-	// If the message is an HTTP response, apply response middlewares.
-	if isHTTPResponse(message) {
+	// Use the provided isResponse function to determine message type
+	if tw.isResponse(message) {
 		for _, mw := range tw.ResponseMiddlewares {
 			message, err = mw(message)
 			if err != nil {
@@ -137,11 +142,4 @@ func extractContentLength(headers []byte) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("Content-Length not found")
-}
-
-// isHTTPResponse determines whether a message is an HTTP response.
-// If the message starts with "HTTP/", it is considered a response.
-func isHTTPResponse(message []byte) bool {
-	msgStr := string(message)
-	return strings.HasPrefix(msgStr, "HTTP/")
 }
