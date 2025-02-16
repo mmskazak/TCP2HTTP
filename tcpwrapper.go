@@ -10,6 +10,7 @@ import (
 
 	isrequest "github.com/mmskazak/tcpwrapper/is_request"
 	isresponse "github.com/mmskazak/tcpwrapper/is_response"
+	"go.uber.org/zap"
 )
 
 // Middleware defines a type of middleware function for processing messages.
@@ -33,6 +34,7 @@ type tcpWrapper struct {
 	responseMiddlewares []Middleware
 	isRequest           isrequest.IsRequestFunc
 	isResponse          isresponse.IsResponseFunc
+	logger              *zap.SugaredLogger
 }
 
 // NewTCPWrapper creates a new instance of TCPWrapper with the given connection and delimiters.
@@ -42,6 +44,7 @@ func NewTCPWrapper(
 	responseDelimiter []byte,
 	isRequest isrequest.IsRequestFunc,
 	isResponse isresponse.IsResponseFunc,
+	logger *zap.Logger,
 ) Wrapper {
 	return &tcpWrapper{
 		conn:                conn,
@@ -51,6 +54,7 @@ func NewTCPWrapper(
 		responseMiddlewares: make([]Middleware, 0),
 		isRequest:           isRequest,
 		isResponse:          isResponse,
+		logger:              logger.Sugar(),
 	}
 }
 
@@ -119,6 +123,7 @@ func (tw *tcpWrapper) HandleMessage() error {
 
 	// Use the provided isRequest and isResponse functions to determine message type
 	if tw.isRequest(message) {
+		tw.logger.Infof("Request received: %s", string(message))
 		for _, mw := range tw.requestMiddlewares {
 			message, err = mw(message)
 			if err != nil {
@@ -126,6 +131,7 @@ func (tw *tcpWrapper) HandleMessage() error {
 			}
 		}
 	} else if tw.isResponse(message) {
+		tw.logger.Infof("Response received: %s", string(message))
 		for _, mw := range tw.responseMiddlewares {
 			message, err = mw(message)
 			if err != nil {
